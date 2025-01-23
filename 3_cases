@@ -1,0 +1,166 @@
+-- January
+CREATE TABLE january_jobs AS
+SELECT *
+FROM job_postings_fact
+WHERE EXTRACT(MONTH FROM job_posted_date) = 1;
+
+-- February
+CREATE TABLE february_jobs AS
+SELECT *
+FROM job_postings_fact
+WHERE EXTRACT(MONTH FROM job_posted_date) = 2;
+
+-- March
+CREATE TABLE march_jobs AS
+SELECT *
+FROM job_postings_fact
+WHERE EXTRACT(MONTH FROM job_posted_date) = 3;
+
+SELECT *
+FROM march_jobs;
+
+
+SELECT
+    COUNT(job_id) AS number_of_jobs,
+    CASE
+        WHEN job_location = 'Anywhere' THEN 'Remote'
+        WHEN job_location = 'New York, NY' THEN 'Local'
+        ELSE 'Onsite'
+    END AS location_category
+FROM job_postings_fact
+WHERE job_title_short = 'Data Analyst'
+GROUP BY location_category;
+
+
+SELECT 
+    job_title, 
+    salary_year_avg
+FROM job_postings_fact
+WHERE job_title = 'Data Analyst' AND salary_year_avg IS NOT NULL
+ORDER BY salary_year_avg;
+
+
+SELECT 
+    job_title, 
+    salary_year_avg, 
+    -- Membuat bucket berdasarkan nilai gaji tahunan
+    CASE 
+        WHEN salary_year_avg < 50000 THEN 'Low Salary'
+        WHEN salary_year_avg BETWEEN 50000 AND 100000 THEN 'Medium Salary'
+        ELSE 'High Salary'
+    END AS salary_bucket
+FROM job_postings_fact
+WHERE job_title = 'Data Analyst' AND salary_year_avg IS NOT NULL
+ORDER BY salary_year_avg DESC;
+
+/* SubQueries and CTEs
+Practice Problem 1
+ */
+ 
+ WITH skill_count AS(
+    SELECT 
+        skill_id,
+        COUNT (*) AS total_skill
+    FROM 
+        skills_job_dim
+    GROUP BY 
+        skill_id
+)
+
+SELECT 
+    skills_dim.skills,
+    skill_count.total_skill
+FROM 
+    skills_dim
+LEFT JOIN skill_count ON skill_count.skill_id = skills_dim.skill_id
+ORDER BY total_skill DESC
+LIMIT 5;
+
+/* SubQueries and CTEs
+Practice Problem 2
+ */
+
+WITH job_count AS( 
+    SELECT 
+        company_id, 
+        COUNT (*) AS total_job
+    FROM
+        job_postings_fact
+    GROUP BY 
+        company_id
+)
+
+ SELECT
+    company_dim.name,
+    job_count.total_job
+    -- CASE 
+    --     WHEN total_job < 10 THEN 'Small'
+    --     WHEN total_job BETWEEN 10 AND 50 THEN 'Medium'
+    --     ELSE 'High'
+    -- END AS company_size
+FROM
+    company_dim
+LEFT JOIN job_count ON job_count.company_id = company_dim.company_id
+
+-- with the help of GPT
+
+
+WITH job_counts AS( 
+    SELECT 
+        company_id, 
+        COUNT (*) AS total_jobs
+    FROM
+        job_postings_fact
+    GROUP BY 
+        company_id
+)
+SELECT 
+    company_dim.name AS company_name,
+    job_counts.total_jobs,
+    CASE 
+        WHEN job_counts.total_jobs < 10 THEN 'Small'
+        WHEN job_counts.total_jobs BETWEEN 10 AND 50 THEN 'Medium'
+        ELSE 'Large'
+    END AS size_category
+FROM company_dim
+INNER JOIN (
+    -- Subquery untuk menghitung jumlah postingan per perusahaan
+    SELECT 
+        company_id, 
+        COUNT(*) AS total_jobs
+    FROM job_postings_fact
+    GROUP BY company_id
+) job_counts
+ON company_dim.company_id = job_counts.company_id
+ORDER BY total_jobs DESC;
+
+
+/* Problem 7 */
+WITH job_remote AS(
+    SELECT 
+        skill_id,
+        COUNT (*) AS skill_count
+        
+    FROM
+        skills_job_dim
+    JOIN job_postings_fact
+    ON job_postings_fact.job_id = skills_job_dim.job_id 
+
+    WHERE 
+        job_postings_fact.job_work_from_home = true AND
+        job_postings_fact.job_title_short = 'Data Analyst'
+
+    GROUP BY skill_id
+)
+
+SELECT 
+    skills_dim.skill_id,
+    skills AS skill_name,
+    skill_count
+FROM job_remote
+
+JOIN skills_dim
+ON skills_dim.skill_id = job_remote.skill_id
+
+ORDER BY skill_count DESC
+LIMIT 5
